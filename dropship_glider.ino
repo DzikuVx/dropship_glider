@@ -7,9 +7,13 @@
 #define RIGHT_AILERON_PIN 10
 #define HOOK_PIN 11
 
-#define CHANNEL_ROLL 1
-#define CHANNEL_PITCH 2
+#define CHANNEL_ROLL 0
+#define CHANNEL_PITCH 1
 #define CHANNEL_HOOK 5
+
+#define OUTPUT_LEFT_AILERON 0
+#define OUTPUT_RIGHT_AILERON 1
+#define OUTPUT_HOOK 2
 
 #define INPUT_PIN 2
 #define INPUT_INTERRUPT 0
@@ -19,13 +23,48 @@ int ppm[16]; //array for storing up to 16 servo signals
 int rcCommand[16];
 int output[3];
 
-Servo servoLeft;
-Servo servoRight;
-Servo servoHook;
+#define MIXER_RULE_COUNT 5
+#define SERVO_COUNT 3
+
+typedef struct {
+    int8_t output;    
+    int8_t input;
+    int8_t weight;
+} mixer_t;
+
+mixer_t mixer[MIXER_RULE_COUNT];
+
+typedef struct {
+    int8_t rate;
+} servoOutput_t;
+
+servoOutput_t servoOutput[SERVO_COUNT];
+
+Servo servoHardware[SERVO_COUNT];
 
 void setup() {
     Serial.begin(57600);
     Serial.println("ready");
+
+    /*
+     * Mixer rules
+     */
+    mixer[0] = (mixer_t) {OUTPUT_LEFT_AILERON, CHANNEL_ROLL, 50};
+    mixer[1] = (mixer_t) {OUTPUT_LEFT_AILERON, CHANNEL_PITCH, 50};
+    mixer[2] = (mixer_t) {OUTPUT_RIGHT_AILERON, CHANNEL_ROLL, -50};
+    mixer[3] = (mixer_t) {OUTPUT_RIGHT_AILERON, CHANNEL_PITCH, 50};
+    mixer[4] = (mixer_t) {OUTPUT_HOOK, CHANNEL_HOOK, 100};
+
+    /*
+     * Servo rules
+     */
+    servoOutput[OUTPUT_LEFT_AILERON] = (servoOutput_t) {100};
+    servoOutput[OUTPUT_RIGHT_AILERON] = (servoOutput_t) {-100};
+    servoOutput[OUTPUT_HOOK] = (servoOutput_t) {100};
+
+    servoHardware[0].attach(LEFT_AILERON_PIN);
+    servoHardware[1].attach(RIGHT_AILERON_PIN);
+    servoHardware[2].attach(HOOK_PIN);
 
     pinMode(INPUT_PIN, INPUT);
     attachInterrupt(INPUT_INTERRUPT, read_ppm, CHANGE);
@@ -33,10 +72,6 @@ void setup() {
     TCCR1A = 0x00; // COM1A1=0, COM1A0=0 => Disconnect Pin OC1 from Timer/Counter 1 -- PWM11=0,PWM10=0 => PWM Operation disabled
     TCCR1B = B00000010; //0x02;	   // 16MHz clock with prescaler means TCNT1 increments every .5 uS (cs11 bit set
     TIMSK1 = _BV(ICIE1); // enable input capture interrupt for timer 1
-
-    servoLeft.attach(LEFT_AILERON_PIN);
-    servoRight.attach(RIGHT_AILERON_PIN);
-    servoHook.attach(HOOK_PIN);
 }
 
 void read_ppm() {
@@ -69,24 +104,20 @@ void loop() {
     }
     count = 0;
 
-    /*
-     * Left aileron
-     */
-    output[0] = (ppm[CHANNEL_ROLL] >> 1) + (ppm[CHANNEL_PITCH] >> 1);
+    for (uint8_t i = 0; i < SERVO_COUNT; i++) {
+        output[i] = 0;
+    }
 
     /*
-     * Right aileron
+     * process rules
      */
-    output[1] = (ppm[CHANNEL_PITCH] >> 1) - (ppm[CHANNEL_ROLL] >> 1);
+    for (uint8_t i = 0; i < MIXER_RULE_COUNT; i++) {
+        output[mixer[i].output] += rcCommand[mixer[i].input] * mixer[i].weight / 100;
+    }
 
-    /*
-     * Hook channel
-     */
-    output[2] = ppm[CHANNEL_HOOK];
-
-    servoLeft.writeMicroseconds(output[0] + 1500);
-    servoRight.writeMicroseconds(output[1] + 1500);
-    servoHook.writeMicroseconds(output[2]);
+    for (uint8_t i = 0; i < SERVO_COUNT; i++) {
+        servoHardware[i].writeMicroseconds((output[i] * servoOutput[i].rate / 100) + 1500);
+    }
 
     Serial.println("");
     delay(100); //you can even use delays!!!

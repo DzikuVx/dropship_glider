@@ -1,6 +1,4 @@
-/*
- * PPM decoder based on https://code.google.com/archive/p/read-any-ppm/
- */
+#include <PPMReader.h>
 #include <Servo.h>
 
 #define LEFT_AILERON_PIN 9
@@ -18,7 +16,6 @@
 #define INPUT_PIN 2
 #define INPUT_INTERRUPT 1
 
-int ppm[16]; //array for storing up to 16 servo signals
 int rcCommand[16];
 int output[3];
 
@@ -40,6 +37,8 @@ typedef struct {
 servoOutput_t servoOutput[SERVO_COUNT];
 
 Servo servoHardware[SERVO_COUNT];
+
+PPMReader ppmReader(INPUT_PIN, INPUT_INTERRUPT);
 
 void setup() {
     Serial.begin(57600);
@@ -65,38 +64,15 @@ void setup() {
     servoHardware[1].attach(RIGHT_AILERON_PIN);
     servoHardware[2].attach(HOOK_PIN);
 
-    pinMode(INPUT_PIN, INPUT);
-    attachInterrupt(INPUT_INTERRUPT, read_ppm, CHANGE);
-}
-
-void read_ppm() {
-    static unsigned int pulse;
-    static unsigned long counter;
-    static byte channel;
-    static unsigned long previousCounter = 0;
-    static unsigned long currentMicros = 0;
-
-    currentMicros = micros();
-    counter = (currentMicros - previousCounter) * 2;
-    previousCounter = currentMicros;
-
-    if (counter < 1020) { //must be a pulse
-        pulse = counter;
-    } else if (counter > 3820) { //sync
-        channel = 0;
-    } else { //servo values between 810 and 2210 will end up here
-        ppm[channel] = (counter + pulse) / 2;
-        channel++;
-    }
 }
 
 void loop() {
     //You can delete everithing inside loop() and put your own code here
     static int count;
 
-    while (ppm[count] != 0) { //print out the servo values
-        rcCommand[count] = ppm[count] - 1500;
-        Serial.print(ppm[count]);
+    while (ppmReader.get(count) != 0) { //print out the servo values
+        rcCommand[count] = ppmReader.get(count) - 1500;
+        Serial.print(ppmReader.get(count));
         Serial.print("  ");
         count++;
     }

@@ -9,15 +9,14 @@
 
 #define CHANNEL_ROLL 0
 #define CHANNEL_PITCH 1
-#define CHANNEL_HOOK 5
+#define CHANNEL_HOOK 4
 
 #define OUTPUT_LEFT_AILERON 0
 #define OUTPUT_RIGHT_AILERON 1
 #define OUTPUT_HOOK 2
 
 #define INPUT_PIN 2
-#define INPUT_INTERRUPT 0
-#define INPUT_CHANNELS 6
+#define INPUT_INTERRUPT 1
 
 int ppm[16]; //array for storing up to 16 servo signals
 int rcCommand[16];
@@ -68,19 +67,18 @@ void setup() {
 
     pinMode(INPUT_PIN, INPUT);
     attachInterrupt(INPUT_INTERRUPT, read_ppm, CHANGE);
-
-    TCCR1A = 0x00; // COM1A1=0, COM1A0=0 => Disconnect Pin OC1 from Timer/Counter 1 -- PWM11=0,PWM10=0 => PWM Operation disabled
-    TCCR1B = B00000010; //0x02;	   // 16MHz clock with prescaler means TCNT1 increments every .5 uS (cs11 bit set
-    TIMSK1 = _BV(ICIE1); // enable input capture interrupt for timer 1
 }
 
 void read_ppm() {
     static unsigned int pulse;
     static unsigned long counter;
     static byte channel;
+    static unsigned long previousCounter = 0;
+    static unsigned long currentMicros = 0;
 
-    counter = TCNT1;
-    TCNT1 = 0;
+    currentMicros = micros();
+    counter = (currentMicros - previousCounter) * 2;
+    previousCounter = currentMicros;
 
     if (counter < 1020) { //must be a pulse
         pulse = counter;

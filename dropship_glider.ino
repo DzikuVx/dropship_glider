@@ -1,9 +1,11 @@
 #include <PPMReader.h>
 #include <Servo.h>
 
+#define DEBUG
+
 #define LEFT_AILERON_PIN 9
 #define RIGHT_AILERON_PIN 10
-#define HOOK_PIN 11
+#define HOOK_PIN 11\
 
 #define CHANNEL_ROLL 0
 #define CHANNEL_PITCH 1
@@ -14,7 +16,7 @@
 #define OUTPUT_HOOK 2
 
 #define INPUT_PIN 2
-#define INPUT_INTERRUPT 1
+#define INPUT_INTERRUPT 0
 
 #define PPM_CHANNELS 16
 #define DEADBAND 5
@@ -22,11 +24,11 @@
 
 #define RC_EXPO_LOOKUP_LENGTH 5
 #define RC_EXPO 70
-#define RC_RATE 90
+#define RC_RATE 100
 
 int rcCommand[PPM_CHANNELS];
 int rcData[PPM_CHANNELS];
-int output[3];
+int32_t output[3];
 
 #define MIXER_RULE_COUNT 5
 #define SERVO_COUNT 3
@@ -94,12 +96,6 @@ void loop()
     while (ppmReader.get(count) != 0)
     {
         rcData[count] = constrain(ppmReader.get(count) - MID_RC, -500, 500);
-
-#ifdef DEBUG
-        Serial.print(ppmReader.get(count));
-        Serial.print("  ");
-#endif
-
         count++;
     }
     count = 0;
@@ -126,7 +122,7 @@ void loop()
             tmp2 = tmp >> 7;
             rcCommand[i] = lookupPitchRollRC[tmp2] + ((tmp - (tmp2 << 7)) * (lookupPitchRollRC[tmp2 + 1] - lookupPitchRollRC[tmp2]) >> 7);
             
-            if (rcData[i] < MID_RC) {
+            if (rcData[i] < 0) {
                 rcCommand[i] = -rcCommand[i];
             }
         } else {
@@ -142,17 +138,24 @@ void loop()
         output[i] = 0;
     }
 
+#ifdef DEBUG
+    Serial.print(rcCommand[0]);
+    Serial.print(" ");
+    Serial.print(rcCommand[1]);
+#endif
+
     /*
      * process rules
      */
     for (uint8_t i = 0; i < MIXER_RULE_COUNT; i++)
     {
-        output[mixer[i].output] += rcCommand[mixer[i].input] * mixer[i].weight / 100;
+        output[mixer[i].output] += (int32_t) (rcCommand[mixer[i].input]) * (int32_t) mixer[i].weight / 100;
     }
 
     for (uint8_t i = 0; i < SERVO_COUNT; i++)
     {
-        servoHardware[i].writeMicroseconds((output[i] * servoOutput[i].rate / 100) + MID_RC);
+        int temp = constrain((output[i] * servoOutput[i].rate / 100) + MID_RC, 1000, 2000);
+        servoHardware[i].writeMicroseconds(temp);
     }
 
 #ifdef DEBUG

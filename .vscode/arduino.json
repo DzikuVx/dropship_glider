@@ -1,6 +1,6 @@
 {
-    "board": "sparkfun:avr:promicro",
+    "board": "arduino:avr:pro",
     "sketch": "dropship_glider.ino",
-    "port": "COM13",
-    "configuration": "cpu=16MHzatmega32U4"
+    "port": "COM5",
+    "configuration": "cpu=16MHzatmega328"
 }
